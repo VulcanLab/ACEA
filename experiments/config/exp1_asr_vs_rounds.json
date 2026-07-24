@@ -1,0 +1,13 @@
+{
+  "name": "ASR vs Rounds — ICACE Red vs Static Blue",
+  "description": "Test whether ICACE evolution increases ASR over rounds",
+  "seeds": [42, 123, 456, 789, 1001],
+  "battle_config": {
+    "red_service_id": "evolved-red",
+    "blue_service_id": "dummy-blue",
+    "mode": "marathon",
+    "max_rounds": 30
+  },
+  "metrics": ["asr_per_round", "harm_score_per_round", "mutation_type_distribution"],
+  "output_dir": "results/exp1"
+}

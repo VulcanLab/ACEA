@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arena-core"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.29",
+    "pydantic-settings>=2.2",
+    "motor>=3.4",
+    "asyncpg>=0.29",
+    "sqlalchemy[asyncio]>=2.0",
+    "redis[hiredis]>=5.0",
+    "minio>=7.2",
+    "httpx>=0.27",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

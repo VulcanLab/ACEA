@@ -1,0 +1,378 @@
+version: "3.9"
+
+networks:
+  arena-internal:
+    driver: bridge
+  arena-sandbox:
+    driver: bridge
+    # internal: true removed — target-red/target-blue adapters need outbound access
+    # to the external LiteLLM proxy. Service isolation is maintained through
+    # network separation: sandbox services cannot reach arena-internal directly.
+
+volumes:
+  mongo-data:
+  postgres-data:
+  redis-data:
+  minio-data:
+  # ASIS now bind-mounts target/ projects directly (no named volumes for adapter source)
+
+services:
+
+  # ── Infrastructure ──────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+      - ./db/mongo/init.js:/docker-entrypoint-initdb.d/init.js
+    networks: [arena-internal]
+    environment:
+      MONGO_INITDB_DATABASE: arena
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks: [arena-internal]
+    environment:
+      POSTGRES_DB: arena
+      POSTGRES_USER: arena
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arena"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    networks: [arena-internal]
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    volumes:
+      - minio-data:/data
+    networks: [arena-internal]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc
+    networks: [arena-internal]
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file: .env
+    entrypoint: ["/bin/sh", "/init.sh"]
+    volumes:
+      - ./db/minio/init.sh:/init.sh
+    profiles: ["init"]
+
+  # ── Platform Services ────────────────────────────────────────
+  arena-core:
+    build: ./arena-core
+    ports:
+      - "${ARENA_CORE_PORT:-8800}:8800"
+    networks: [arena-internal, arena-sandbox]
+    env_file: .env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  target-ai:
+    build: ./target-ai
+    ports:
+      - "${TARGET_AI_PORT:-8001}:8001"
+    networks: [arena-internal]
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  judge:
+    build: ./judge
+    ports:
+      - "${JUDGE_PORT:-8002}:8002"
+    networks: [arena-internal]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  evolution-red:
+    build: ./evolution
+    ports:
+      - "${EVOLUTION_RED_PORT:-8003}:8003"
+    networks: [arena-internal, arena-sandbox]
+    env_file: .env
+    environment:
+      WRAPPER_TEAM: red
+      SERVICE_PORT: 8003
+      DOWNSTREAM_URL: http://target-red:${RED_ADAPTER_PORT:-9010}
+      ANALYZER_MODEL: ${ANALYZER_MODEL:?set ANALYZER_MODEL in .env}
+      REWRITER_MODEL: ${REWRITER_MODEL:?set REWRITER_MODEL in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      target-red:
+        condition: service_started
+
+  evolution-blue:
+    build: ./evolution
+    ports:
+      - "${EVOLUTION_BLUE_PORT:-8004}:8004"
+    networks: [arena-internal, arena-sandbox]
+    env_file: .env
+    environment:
+      WRAPPER_TEAM: blue
+      SERVICE_PORT: 8004
+      DOWNSTREAM_URL: http://target-blue:${BLUE_ADAPTER_PORT:-9020}
+      ANALYZER_MODEL: ${ANALYZER_MODEL:?set ANALYZER_MODEL in .env}
+      REWRITER_MODEL: ${REWRITER_MODEL:?set REWRITER_MODEL in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      target-blue:
+        condition: service_started
+
+  visualization:
+    build:
+      context: ./ghost-signal
+      args:
+        # These URLs are baked into the browser JS bundle — must be
+        # host-reachable (localhost), not Docker-internal hostnames.
+        VITE_API_URL: http://localhost:${ARENA_CORE_PORT:-8800}
+        VITE_WS_URL: ws://localhost:${ARENA_CORE_PORT:-8800}/ws
+        VITE_REPORT_URL: http://localhost:${REPORT_COMPOSER_PORT:-8005}
+    ports:
+      - "${VIZ_PORT:-3030}:3030"
+    networks: [arena-internal]
+    env_file: .env
+    depends_on:
+      arena-core:
+        condition: service_started
+
+  report-composer:
+    build: ./report-composer
+    ports:
+      - "${REPORT_COMPOSER_PORT:-8005}:8005"
+    networks: [arena-internal]
+    env_file: .env
+    environment:
+      # Battle reports are auto-saved here on battle end (host-mounted below).
+      REPORTS_DIR: /data/reports
+    volumes:
+      # Persist generated reports to the project directory so a run is never
+      # lost on browser refresh and no manual "Save PDF" is needed.
+      - ./reports:/data/reports
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  code-improver:
+    build: ./code-improver
+    ports:
+      - "${CODE_IMPROVER_PORT:-8010}:8010"
+    networks: [arena-internal, arena-sandbox]
+    env_file: .env
+    environment:
+      ARENA_CORE_URL: http://arena-core:8800
+      RED_PROJECT_PATH: /projects/red
+      BLUE_PROJECT_PATH: /projects/blue
+      GEN0_BACKUP_ROOT: /gen0
+      # Per-team metadata — REQUIRED in .env
+      RED_CONTAINER_NAME:       ${RED_CONTAINER_NAME:?set in .env}
+      BLUE_CONTAINER_NAME:      ${BLUE_CONTAINER_NAME:?set in .env}
+      RED_IMAGE_TAG:            ${RED_IMAGE_TAG:?set in .env}
+      BLUE_IMAGE_TAG:           ${BLUE_IMAGE_TAG:?set in .env}
+      RED_ADAPTER_DIRECT_URL:   ${RED_ADAPTER_DIRECT_URL:?set in .env}
+      BLUE_ADAPTER_DIRECT_URL:  ${BLUE_ADAPTER_DIRECT_URL:?set in .env}
+      META_AGENT_MODEL:         ${META_AGENT_MODEL:?set in .env}
+      # HOST paths — Docker SDK build context is resolved client-side, but we
+      # pass these so future docker-compose-based rebuilds work too.
+      RED_ADAPTER_PATH_HOST:  ${RED_ADAPTER_PATH}
+      BLUE_ADAPTER_PATH_HOST: ${BLUE_ADAPTER_PATH}
+    volumes:
+      # Plugged-in projects are mounted READ-ONLY. ASIS copies each into an
+      # internal writable /work dir, edits the COPY, and builds a candidate
+      # image from it — the user's original source is never modified.
+      - ${RED_ADAPTER_PATH:?RED_ADAPTER_PATH must be set in .env (path to your red-team project root)}:/projects/red:ro
+      - ${BLUE_ADAPTER_PATH:?BLUE_ADAPTER_PATH must be set in .env (path to your blue-team project root)}:/projects/blue:ro
+      - ./gen0:/gen0:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      arena-core:
+        condition: service_started
+
+  # ── External Team Services (sandboxed) ──────────────────────
+  red-team:
+    image: ${RED_TEAM_IMAGE:-arena/dummy-red:latest}
+    networks: [arena-sandbox]
+    environment:
+      ARENA_TOKEN: ${RED_TEAM_TOKEN}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL}
+      LITELLM_API_KEY: ${LITELLM_API_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: "${SANDBOX_CPU_LIMIT:-1.0}"
+          memory: "${SANDBOX_MEMORY_LIMIT:-512m}"
+    profiles: ["with-red-container"]
+
+  blue-team:
+    image: ${BLUE_TEAM_IMAGE:-arena/dummy-blue:latest}
+    networks: [arena-sandbox]
+    environment:
+      ARENA_TOKEN: ${BLUE_TEAM_TOKEN}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL}
+      LITELLM_API_KEY: ${LITELLM_API_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: "${SANDBOX_CPU_LIMIT:-1.0}"
+          memory: "${SANDBOX_MEMORY_LIMIT:-512m}"
+    profiles: ["with-blue-container"]
+
+  # ── Real Team Adapters (connected from target/ projects) ─────
+  # ── External adapter containers ─────────────────────────────────────────────
+  # Set RED_ADAPTER_PATH / BLUE_ADAPTER_PATH in .env to point to your project.
+  # Default falls back to the bundled example adapters.
+  target-red:
+    build:
+      context: ${RED_ADAPTER_PATH:?RED_ADAPTER_PATH must be set in .env (path to your red-team project root)}
+      dockerfile: Dockerfile
+    ports:
+      - "${RED_ADAPTER_PORT:-9010}:${RED_ADAPTER_PORT:-9010}"
+    networks: [arena-sandbox]
+    env_file: .env
+    environment:
+      ATTACK_MODEL: ${RED_ADAPTER_MODEL:-${RED_ANALYZER_MODEL:-}}
+      TARGET_PURPOSE: "helpful AI assistant"
+      SERVICE_PORT: ${RED_ADAPTER_PORT:-9010}
+      # Adapter learning memory persists to a PROJECT-LOCAL dir (./data), never /tmp.
+      RED_MEMORY_PATH: /data/red_memory.json
+    # Persist adapter memory inside the project directory (host: ./data/adapter-memory).
+    volumes:
+      - ./data/adapter-memory:/data
+    # No source bind-mount: the container runs the code baked into its image
+    # (Dockerfile `COPY . /app`). ASIS ships improvements by rebuilding this
+    # image from an edited COPY, never by mutating the user's source on disk.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${RED_ADAPTER_PORT:-9010}/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  target-blue:
+    build:
+      context: ${BLUE_ADAPTER_PATH:?BLUE_ADAPTER_PATH must be set in .env (path to your blue-team project root)}
+      # A blue project whose real engine runs as a separate service (see the
+      # blue-engine service) ships a bridge Dockerfile; others use the default.
+      dockerfile: ${BLUE_DOCKERFILE:-Dockerfile}
+    ports:
+      - "${BLUE_ADAPTER_PORT:-9020}:${BLUE_ADAPTER_PORT:-9020}"
+    networks: [arena-sandbox]
+    env_file: .env
+    environment:
+      DEFENSE_MODEL: ${BLUE_ANALYZER_MODEL:-}
+      SERVICE_PORT: ${BLUE_ADAPTER_PORT:-9020}
+      # If the blue project has a separate detection engine, the adapter bridges
+      # to it here (ignored by adapters that don't use a local service).
+      LOCAL_SERVICE_URL: ${BLUE_LOCAL_SERVICE_URL:-}
+      # Adapter learning memory persists to a PROJECT-LOCAL dir (./data), never /tmp.
+      BLUE_MEMORY_PATH: /data/blue_memory.json
+    # Persist adapter memory inside the project directory (host: ./data/adapter-memory).
+    volumes:
+      - ./data/adapter-memory:/data
+    # No source bind-mount: runs the code baked into its image. ASIS ships
+    # improvements by rebuilding this image from an edited COPY of the project.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${BLUE_ADAPTER_PORT:-9020}/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Optional: a blue project whose real detection engine runs as its own service
+  # (a full app needing Postgres + Redis). It reuses the platform's Postgres
+  # (separate DB) and Redis, and routes its own AI calls through the shared
+  # LiteLLM proxy. Started only with the "blue-engine" profile so it never
+  # burdens stacks that use a different blue project. Point BLUE_ENGINE_PATH at
+  # your project and BLUE_LOCAL_SERVICE_URL at http://blue-engine:8080.
+  blue-engine:
+    profiles: ["blue-engine"]
+    build:
+      # Defaults to the same project root as the blue adapter; override with
+      # BLUE_ENGINE_PATH if the engine lives in a different directory.
+      context: ${BLUE_ENGINE_PATH:-${BLUE_ADAPTER_PATH:-./dummy-blue}}
+      dockerfile: ${BLUE_ENGINE_DOCKERFILE:-Dockerfile}
+    networks: [arena-internal, arena-sandbox]
+    env_file: .env
+    environment:
+      DB_DSN: postgres://arena:arena_secret_2026@postgres:5432/${BLUE_ENGINE_DB:-external_blue}?sslmode=disable
+      REDIS_URL: redis://redis:6379/3
+      AUTH_ENABLED: "false"
+      SERVER_PORT: "8080"
+      APP_MODE: dev
+      AI_PROVIDER: OPENAI_COMPATIBLE
+      AI_MODEL_URL: ${LITELLM_BASE_URL}v1
+      AI_API_KEY: ${LITELLM_API_KEY}
+      AI_MODEL: ${BLUE_ENGINE_AI_MODEL:-}
+      FEATURE_AI_SEMANTIC_ANALYSIS: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Testing / Development ────────────────────────────────────
+  dummy-red:
+    build: ./dummy-red
+    ports:
+      - "9001:9001"
+    networks: [arena-sandbox]
+    env_file: .env
+    profiles: ["dev"]
+
+  dummy-blue:
+    build: ./dummy-blue
+    ports:
+      - "9002:9002"
+    networks: [arena-sandbox]
+    env_file: .env
+    profiles: ["dev"]
