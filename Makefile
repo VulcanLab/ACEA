@@ -12,8 +12,11 @@ down:
 build:
 	docker compose --profile dev build
 
+# Only directories that actually exist are listed — pytest errors out on a
+# missing path, which made this target unrunnable. Add each suite here as it
+# gets written (arena-core, target-ai, judge, adapters, tests/integration).
 test:
-	pytest arena-core/tests/ target-ai/tests/ judge/tests/ evolution/tests/ adapters/tests/ tests/integration/ -v
+	pytest evolution/tests/ -v
 
 test-integration:
 	pytest tests/integration/ -v

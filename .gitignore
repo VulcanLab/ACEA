@@ -29,6 +29,8 @@ docs/
 
 ref-pixel/
 tests/
+# ...but committed service unit tests are part of the codebase
+!evolution/tests/
 # ghost-signal frontend (generated/local files)
 ghost-signal/node_modules/
 ghost-signal/dist/

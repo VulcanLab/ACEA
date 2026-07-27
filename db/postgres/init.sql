@@ -122,8 +122,8 @@ CREATE TABLE IF NOT EXISTS prompt_variants (
     parent_id   UUID         REFERENCES prompt_variants(id),
     prompt_text TEXT         NOT NULL,
     -- Rolling performance stats (updated after each session closes)
-    sessions_used       INTEGER NOT NULL DEFAULT 0,
-    total_improvement   REAL    NOT NULL DEFAULT 0.0, -- sum of (final_sr - initial_sr)
+    sessions_used       INTEGER NOT NULL DEFAULT 0,  -- distinct sessions, recomputed
+    total_improvement   REAL    NOT NULL DEFAULT 0.0, -- sum of (late_pss - early_pss)
     avg_improvement     REAL    NOT NULL DEFAULT 0.0, -- total / sessions_used
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -135,9 +135,11 @@ CREATE TABLE IF NOT EXISTS session_prompt_metrics (
     session_id        UUID     NOT NULL REFERENCES battle_sessions(id) ON DELETE CASCADE,
     team              VARCHAR(8)  NOT NULL,
     prompt_variant_id UUID     REFERENCES prompt_variants(id),
-    initial_sr        REAL,    -- success rate of team in rounds 1..3
-    final_sr          REAL,    -- success rate of team in last 3 rounds
-    improvement       REAL,    -- final_sr - initial_sr  (positive = evolution worked)
+    -- Names predate the switch to PSS; these now hold the team's Partial
+    -- Success Score over the first and last third of the session.
+    initial_sr        REAL,    -- early_pss: PSS over the first third
+    final_sr          REAL,    -- late_pss:  PSS over the last third
+    improvement       REAL,    -- late_pss - early_pss  (positive = evolution worked)
     total_rounds      INTEGER,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(session_id, team)
