@@ -1,0 +1,99 @@
+version: "3.9"
+
+# Development overrides: hot reload + debug ports
+services:
+
+  arena-core:
+    build:
+      context: ./arena-core
+      target: development
+    volumes:
+      - ./arena-core/src:/app
+    environment:
+      RELOAD: "true"
+      AUTO_REGISTER_DUMMY: "true"
+    command: uvicorn main:app --host 0.0.0.0 --port 8800 --reload
+
+  target-ai:
+    build:
+      context: ./target-ai
+      target: development
+    volumes:
+      - ./target-ai/src:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+
+  judge:
+    build:
+      context: ./judge
+      target: development
+    volumes:
+      - ./judge/src:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+
+  evolution-red:
+    build:
+      context: ./evolution
+      target: development
+    volumes:
+      - ./evolution/src:/app
+    environment:
+      WRAPPER_TEAM: red
+      SERVICE_PORT: "8003"
+      DOWNSTREAM_URL: http://dummy-red:9001
+    command: uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+
+  evolution-blue:
+    build:
+      context: ./evolution
+      target: development
+    volumes:
+      - ./evolution/src:/app
+    environment:
+      WRAPPER_TEAM: blue
+      SERVICE_PORT: "8004"
+      DOWNSTREAM_URL: http://dummy-blue:9002
+    command: uvicorn main:app --host 0.0.0.0 --port 8004 --reload
+
+  dummy-red:
+    build:
+      context: ./dummy-red
+      target: development
+    volumes:
+      - ./dummy-red/src:/app
+    networks:
+      - arena-internal
+      - arena-sandbox
+    command: uvicorn main:app --host 0.0.0.0 --port 9001 --reload
+
+  dummy-blue:
+    build:
+      context: ./dummy-blue
+      target: development
+    volumes:
+      - ./dummy-blue/src:/app
+    networks:
+      - arena-internal
+      - arena-sandbox
+    command: uvicorn main:app --host 0.0.0.0 --port 9002 --reload
+
+  visualization:
+    build:
+      context: ./ghost-signal
+      target: development
+    volumes:
+      - ./ghost-signal/src:/app/src
+      - ./ghost-signal/public:/app/public
+    environment:
+      NODE_ENV: development
+    command: npm run dev
+
+  report-composer:
+    build:
+      context: ./report-composer
+      target: development
+    environment:
+      REPORTS_DIR: /data/reports
+    volumes:
+      - ./report-composer/src:/app
+      - ./reports:/data/reports
+    command: uvicorn main:app --host 0.0.0.0 --port 8005 --reload

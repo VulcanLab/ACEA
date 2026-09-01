@@ -1,0 +1,15 @@
+# ACEA platform manifest — declares this project's role + protocol version.
+[acea]
+project_name = "acea-default-blue"
+team         = "blue"
+framework    = "IntentGuard — Reasoned Intent Classification"
+asap_version = "1.0"
+adapter_port = 9020
+
+[acea.entrypoints]
+health             = "GET /health"
+evaluate_defense   = "POST /v1/evaluate-defense"
+
+[acea.metadata]
+default         = true
+description     = "Built-in default blue-team — bypass by setting BLUE_ADAPTER_PATH in .env"

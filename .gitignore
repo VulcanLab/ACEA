@@ -1,0 +1,195 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+.venv-asis-test/
+.venv/
+venv/
+*.log
+*.db
+# Node
+node_modules/
+.next/
+dist/
+.playwright-cli/
+.playwright/
+.cursor/
+.agents/
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+.pytest_cache
+# OS
+.DS_Store
+.claude/
+.vscode/
+doc/
+docs/
+data/
+ref-pixel/
+# Blanket rule for local scratch test dirs...
+tests/
+# ...but the committed service unit suites are part of the codebase. Keep this
+# list in sync with UNIT_SUITES in the Makefile.
+!arena-core/tests/
+!target-ai/tests/
+!judge/tests/
+!evolution/tests/
+!adapters/tests/
+!report-composer/tests/
+!target/red/acea-default-red/tests/
+!tests/integration/
+# ghost-signal frontend (generated/local files)
+ghost-signal/node_modules/
+ghost-signal/dist/
+ghost-signal/.env
+ghost-signal/.env.local
+ghost-signal/next-env.d.ts
+
+# Brainstorm session artifacts
+.superpowers/
+
+# TypeScript build artifacts
+*.tsbuildinfo
+
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+credentials.json
+service-account.json
+secrets.json
+config.yaml
+config.yml
+
+# AI / LLM secrets
+*.token
+*.apikey
+.env.*
+!.env.example
+llm_keys.json
+keys.json
+auth.json
+
+logs/
+trace/
+traces/
+runs/
+outputs/
+results/
+debug/
+
+# vector / memory store
+chroma/
+faiss/
+pinecone/
+weaviate/
+milvus/
+db/vector/
+memory/
+cache/gen0/
+
+# ── External / third-party projects plugged in for testing — NOT our code ──
+# Ignore the whole target/ tree EXCEPT our bundled default adapters
+# (acea-default-red / acea-default-blue), which the platform ships and needs
+# out-of-box. Any third-party projects a user clones in for testing are
+# excluded — the platform attaches to them via .env, it does not vendor them.
+target/*
+!target/red/
+!target/blue/
+target/red/*
+target/blue/*
+!target/red/acea-default-red/
+!target/blue/acea-default-blue/
+!target/blue/minimal-blue/
+
+# ASIS backups of plugged-in projects (copies of external code)
+backup/
+gen0/
+
+# Knowledge-graph export
+graphify-out/
+
+# OneDrive sync conflict copies
+*.original.md
+
+# .env backups (may contain API keys)
+.env.bak*
+
+CLAUDE.md
+AGENTS.md
+memory.md
+NEXT_STEP.md
+PROJECT_STATE.md
+SESSION_LOG.md
+PAPER_REVIEW_CONFLICTS.md
+# Auto-saved battle reports (generated output)
+/reports/
+other/
+update/
+.claudeignore
+# ── Additional sensitive / local-only patterns ──
+# Credential stores and cloud config that must never leave the machine
+.aws/
+.ssh/
+.npmrc
+.pypirc
+*.kubeconfig
+kubeconfig
+*.jks
+*.keystore
+*.p8
+*.ovpn
+*.netrc
+.netrc
+
+# Infrastructure state (often contains secrets in plaintext)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Local databases and dumps
+*.sqlite
+*.sqlite3
+*.dump
+*.sql.gz
+pgdata/
+
+# Captured traffic and session material
+*.har
+*.pcap
+*.cookies
+*.session
+
+# Editor and OS local state
+.idea/
+.direnv/
+*.swp
+*.swo
+Thumbs.db
+
+# Local scratch space
+scratch/
+scratchpad/
+tmp/
+
+# Keep the runtime mount points in the tree so a fresh clone has the directories
+# a bind mount expects, without publishing anything written into them.
+!data/adapter-memory/.gitkeep
+!data/adapter-memory/.gitignore
+
+# Rendered animation output. The renderer in animation/src reproduces all of it,
+# so the media itself does not need to live in the repository.
+# The README embeds these two, so they belong in the repository.
+
+animation/demo/
+animation/tour/
+animation/extended/
+animation/out/
+animation/

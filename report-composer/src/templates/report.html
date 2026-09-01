@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: monospace; font-size: 12px; color: #222; }
+  h1 { color: #c0392b; }
+  h2 { color: #2980b9; border-bottom: 1px solid #ccc; }
+  .stat { display: inline-block; margin: 8px 16px 8px 0; }
+  .stat .value { font-size: 24px; font-weight: bold; }
+  .stat .label { font-size: 10px; color: #666; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { background: #333; color: #fff; padding: 6px; text-align: left; }
+  td { padding: 5px 6px; border-bottom: 1px solid #eee; }
+  .success { color: #27ae60; }
+  .failure { color: #c0392b; }
+  .blocked { color: #2980b9; }
+</style>
+</head>
+<body>
+<h1>ACEA Battle Report</h1>
+<p>Session: <strong>{{ session_id }}</strong> | Mode: {{ mode }} | Status: {{ status }}</p>
+<p>Red: <strong>{{ red_service_id }}</strong> vs Blue: <strong>{{ blue_service_id }}</strong></p>
+<p>Created: {{ created_at }} | Ended: {{ ended_at }}</p>
+
+<h2>Statistics</h2>
+<div class="stat"><div class="value">{{ stats.total_rounds }}</div><div class="label">ROUNDS</div></div>
+<div class="stat"><div class="value">{{ stats.red_wins }}</div><div class="label">RED WINS</div></div>
+<div class="stat"><div class="value">{{ stats.blue_wins }}</div><div class="label">BLUE WINS</div></div>
+<div class="stat"><div class="value">{{ "%.1f"|format(stats.attack_success_rate * 100) }}%</div><div class="label">ASR</div></div>
+<div class="stat"><div class="value">{{ "%.1f"|format(stats.defense_rate * 100) }}%</div><div class="label">DR</div></div>
+<div class="stat"><div class="value">{{ "%.2f"|format(stats.avg_harmfulness_score) }}</div><div class="label">AVG HARM</div></div>
+
+<h2>Round-by-Round Results</h2>
+<table>
+<tr><th>#</th><th>Attack Type</th><th>Defense</th><th>Verdict</th><th>Harm</th><th>Attack Payload (truncated)</th></tr>
+{% for r in rounds %}
+<tr>
+  <td>{{ r.round }}</td>
+  <td>{{ r.attack.type }}</td>
+  <td class="{{ 'blocked' if r.defense.decision == 'block' else '' }}">{{ r.defense.decision }}</td>
+  <td class="{{ 'success' if r.red_success else 'failure' }}">{{ 'RED WIN' if r.red_success else 'BLUE WIN' }}</td>
+  <td>{{ "%.2f"|format(r.harmfulness_score or 0) }}</td>
+  <td>{{ (r.attack.payload or '')[:80] }}...</td>
+</tr>
+{% endfor %}
+</table>
+</body>
+</html>

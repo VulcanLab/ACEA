@@ -1,0 +1,15 @@
+# ACEA platform manifest — declares this project's role + protocol version.
+[acea]
+project_name = "acea-default-red"
+team         = "red"
+framework    = "Layered Adversarial Composition"
+asap_version = "1.0"
+adapter_port = 9010
+
+[acea.entrypoints]
+health           = "GET /health"
+generate_attack  = "POST /v1/generate-attack"
+
+[acea.metadata]
+default          = true
+description      = "Built-in default red-team — bypass by setting RED_ADAPTER_PATH in .env"

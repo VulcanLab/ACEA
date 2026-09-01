@@ -1,0 +1,3 @@
+# Runtime adapter learning memory — data, not source. Keep the dir, ignore contents.
+*.json
+!.gitkeep

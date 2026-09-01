@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ghost Signal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: #000;
+        color: #e2e8f0;
+        font-family: 'JetBrains Mono', monospace;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      #root {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+      }
+      /* CRT scanline overlay */
+      body::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: repeating-linear-gradient(
+          0deg, transparent, transparent 2px,
+          rgba(0,0,0,0.055) 2px, rgba(0,0,0,0.055) 4px
+        );
+        pointer-events: none;
+        z-index: 9999;
+      }
+      /* Vignette */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.5) 100%);
+        pointer-events: none;
+        z-index: 9998;
+      }
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: #0d1117; }
+      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+      .modal-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.72);
+        backdrop-filter: blur(3px);
+        z-index: 1000;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .modal-backdrop > div { animation: modal-in 0.14s ease-out; }
+      @keyframes modal-in {
+        from { transform: scale(0.93) translateY(-6px); opacity: 0; }
+        to   { transform: scale(1) translateY(0); opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
