@@ -816,3 +816,21 @@ Security vulnerabilities, ordinary bugs, and evaluation defects each have a rout
 ## License
 
 Licensed under the Apache License 2.0. See **[LICENSE](LICENSE)** for the full text. Third-party projects you connect keep their own licences; this project does not incorporate their code.
+
+---
+
+## Citing
+
+If you find this project useful, please consider citing:
+
+```
+@misc{shen2026acea,
+      title={ACEA: An Adversarial Co-Evolution Arena for Head-to-Head Red-Team and Blue-Team LLM Testing},
+      author={Yi Ting Shen and Kentaroh Toyoda and Alex Leung},
+      year={2026},
+      eprint={2609.08256},
+      archivePrefix={arXiv},
+      primaryClass={cs.CR},
+      url={https://arxiv.org/abs/2609.08256},
+}
+```
